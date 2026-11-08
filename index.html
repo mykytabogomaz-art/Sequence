@@ -355,6 +355,8 @@
     qOptions.querySelectorAll(".option").forEach(c => c.classList.remove("picked-bad"));
     if (ok) {
       card.classList.add("picked-ok");
+      feedback.className = "msg";
+      feedback.textContent = "";
       qOptions.classList.add("done");
       qFeedback.className = "msg";
       qNext.textContent = qIndex < QUESTIONS.length - 1 ? "Далі" : "Завершити";
