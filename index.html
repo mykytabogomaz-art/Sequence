@@ -32,7 +32,8 @@
   .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
   .col { min-width: 0; }
   @media (max-width: 600px) {
-    .columns { grid-template-columns: 1fr; gap: 0; }
+    .columns { grid-template-columns: 1fr; gap: 16px; }
+    #waitBox, #leftTitle:not(.q) { display: none !important; }
   }
   h1 { font-size: 1.5em; margin: 0 0 6px; }
   .task { color: var(--muted); margin: 0 0 12px; }
@@ -50,9 +51,17 @@
     cursor: pointer;
     transition: transform .1s, border-color .2s, background .2s;
   }
-  .card:active { transform: scale(.98); }
-  .card:disabled { cursor: default; }
-  .card:disabled:active { transform: none; }
+  #answer .card { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #answer .card .handle { margin-left: auto; flex: none; color: var(--muted); font-size: 1.3em; line-height: 1; }
+  #answer .card.dragging {
+    position: fixed; z-index: 10; margin: 0;
+    cursor: grabbing; transition: none;
+    box-shadow: 0 10px 24px rgba(0,0,0,.18);
+    border-color: var(--accent);
+  }
+  .placeholder { border: 2px dashed var(--accent); border-radius: 12px; background: var(--slot); }
+  #answer.correct .card { cursor: default; }
+  #answer.correct .card .handle { visibility: hidden; }
   .card .num {
     flex: none;
     width: 30px; height: 30px; border-radius: 50%;
@@ -60,13 +69,14 @@
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: .9em;
   }
-  #answer .card { background: var(--accent-soft); border-color: var(--accent); }
+  #answer.correct .card { background: var(--accent-soft); border-color: var(--accent); }
   #answer.stretch .card { flex: 1 1 auto; }
   #answer .card.wrong { background: var(--wrong-soft); border-color: var(--wrong); }
   #answer .card.wrong .num { background: var(--wrong); }
-  .empty {
-    border: 2px dashed var(--border); border-radius: 12px;
-    padding: 14px; color: var(--muted); text-align: center; background: var(--slot);
+  #waitBox {
+    display: flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--border); border-radius: 14px;
+    padding: 20px; color: var(--muted); text-align: center; background: var(--slot);
   }
 
   .buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
@@ -88,73 +98,47 @@
 
   #quiz {
     display: none;
+    flex-direction: column; justify-content: space-between; gap: 14px;
     padding: 16px;
     background: var(--card);
     border: 2px solid var(--question);
     border-radius: 14px;
   }
-  #qProgress { display: none; color: var(--question); }
-  .q-text { font-weight: 700; font-size: 1.1em; margin: 0 0 8px; }
-  #qOptions { gap: 2px; min-height: 0; }
-  .q-footer { display: grid; margin-top: 10px; }
-  .q-footer > * { grid-area: 1 / 1; margin: 0; visibility: hidden; }
-  #qFeedback { display: block; padding: 8px; align-self: center; }
-  #qFeedback.bad { visibility: visible; }
-  #quiz .btn { padding: 10px; }
-  .option {
-    display: flex; align-items: center; gap: 12px;
-    padding: 6px 10px;
-    border: none; border-radius: 12px;
-    background: transparent;
-    cursor: pointer;
+  #leftTitle.q { color: var(--question); }
+  .q-item label { display: block; font-weight: 700; margin: 0 0 6px; }
+  .q-item input {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    border: 2px solid var(--border); border-radius: 10px;
+    background: var(--slot); color: var(--text);
+    outline: none;
   }
-  .option input {
-    flex: none; width: 22px; height: 22px; margin: 0;
-    accent-color: var(--accent); cursor: pointer;
-  }
-  .option input:disabled { cursor: default; }
-  .option.picked-ok { background: var(--accent-soft); }
-  .option.picked-bad { background: var(--wrong-soft); }
-  .option.picked-bad input { accent-color: var(--wrong); }
-  #qNext { width: 100%; align-self: center; }
-  #qOptions.done { pointer-events: none; }
-
-  #retell { display: none; margin-top: 4px; text-align: center; color: var(--muted); }
+  .q-item input:focus { border-color: var(--question); background: #fff; }
+  .q-item input.ok { border-color: var(--accent); background: var(--accent-soft); }
+  .q-item input.bad { border-color: var(--wrong); background: var(--wrong-soft); }
 </style>
 </head>
 <body>
 <main>
   <h1>☕ Як заварити чай</h1>
-  <p class="task">Розстав речення у правильній послідовності. Натискай на речення по черзі: що робимо спочатку, що потім.</p>
+  <p class="task">Речення стоять у неправильному порядку. Перетягни їх мишкою або пальцем, щоб розставити дії правильно: що робимо спочатку, що потім.</p>
 
   <div class="columns">
-    <div class="col">
-      <h2 id="poolTitle">Речення</h2>
-      <div id="pool" class="list"></div>
-
-      <h2 id="qProgress"></h2>
-      <section id="quiz">
-        <p id="qText" class="q-text"></p>
-        <div id="qOptions" class="list"></div>
-        <div class="q-footer">
-          <div id="qFeedback" class="msg">Ні, подивись на свою послідовність і спробуй ще раз.</div>
-          <button id="qNext" class="btn btn-main">Завершити</button>
-        </div>
-      </section>
-
-      <div id="retell">
-        <div class="msg ok">🎉 Чудово! Ти відповів на всі питання!</div>
-        <p>Тепер розкажи своїми словами, як заварити чай.</p>
-      </div>
-    </div>
     <div class="col">
       <h2>Моя послідовність</h2>
       <div id="answer" class="list"></div>
     </div>
+    <div class="col">
+      <h2 id="leftTitle">Питання</h2>
+      <div id="waitBox">Питання з'являться тут, коли всі речення стоятимуть правильно.</div>
+      <section id="quiz"></section>
+    </div>
   </div>
 
   <div class="buttons">
-    <button id="check" class="btn btn-main" disabled>Перевірити</button>  </div>
+    <button id="check" class="btn btn-main">Перевірити</button>
+  </div>
 
   <div id="feedback" class="msg"></div>
 </main>
@@ -185,13 +169,13 @@
   ];
 
   const $ = id => document.getElementById(id);
-  const pool = $("pool"), answer = $("answer"), checkBtn = $("check");
-  const feedback = $("feedback"), quiz = $("quiz"), retell = $("retell");
-  const qProgress = $("qProgress"), qText = $("qText"), qOptions = $("qOptions");
-  const qFeedback = $("qFeedback"), qNext = $("qNext");
+  const answer = $("answer"), checkBtn = $("check");
+  const leftTitle = $("leftTitle"), waitBox = $("waitBox");
+  const feedback = $("feedback"), quiz = $("quiz");
 
-  let poolOrder = [], answerOrder = [];
-  let locked = false, qIndex = 0;
+  let answerOrder = [];
+  let phase = "order";   // "order" → розставляємо, "questions" → відповідаємо, "done"
+  let locked = false;
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -203,48 +187,91 @@
   }
 
   function makeCard(id, numbered, index) {
-    const b = document.createElement("button");
+    const b = document.createElement("div");
     b.className = "card";
     b.dataset.id = id;
-    b.innerHTML = (numbered ? `<span class="num">${index + 1}</span>` : "") +
-      `<span>${STEPS[id]}</span>`;
+    b.innerHTML = `<span>${STEPS[id]}</span>` + (numbered ? '<span class="handle">⠿</span>' : "");
     return b;
   }
 
   function render() {
-    pool.innerHTML = "";
     answer.innerHTML = "";
-    if (poolOrder.length === 0) {
-      pool.innerHTML = '<div class="empty">Усі речення розставлено 👍</div>';
-    }
-    poolOrder.forEach(id => {
-      const c = makeCard(id, false);
-      c.onclick = () => move(id, true);
-      pool.appendChild(c);
-    });
-    if (answerOrder.length === 0) {
-      answer.innerHTML = '<div class="empty">Натисни на перше речення</div>';
-    }
     answerOrder.forEach((id, i) => {
       const c = makeCard(id, true, i);
-      c.onclick = () => move(id, false);
-      c.disabled = locked;
+      enableDrag(c);
       answer.appendChild(c);
     });
-    checkBtn.disabled = locked || poolOrder.length > 0;
   }
 
-  function move(id, toAnswer) {
-    if (locked) return;
-    clearFeedback();
-    if (toAnswer) {
-      poolOrder = poolOrder.filter(x => x !== id);
-      answerOrder.push(id);
-    } else {
-      answerOrder = answerOrder.filter(x => x !== id);
-      poolOrder.push(id);
-    }
-    render();
+  function renumber() {
+    answer.querySelectorAll(".card .num").forEach((n, i) => n.textContent = i + 1);
+  }
+
+  // ---------- Перетягування (мишка і палець) ----------
+  function enableDrag(card) {
+    card.addEventListener("pointerdown", e => {
+      if (locked || e.button > 0) return;
+      e.preventDefault();
+      const startY = e.clientY;
+      let dragging = false, ph, offsetY, lastY = startY, scrollTimer = null;
+      card.setPointerCapture(e.pointerId);
+
+      function place(y) {
+        card.style.top = (y - offsetY) + "px";
+        const others = [...answer.querySelectorAll(".card:not(.dragging)")];
+        const before = others.find(o => {
+          const r = o.getBoundingClientRect();
+          return y < r.top + r.height / 2;
+        });
+        if (before) answer.insertBefore(ph, before); else answer.appendChild(ph);
+      }
+
+      // Автопрокрутка біля краю екрана (на телефоні)
+      function autoScroll() {
+        const edge = 60;
+        let dy = 0;
+        if (lastY < edge) dy = -12;
+        else if (lastY > window.innerHeight - edge) dy = 12;
+        if (dy) { window.scrollBy(0, dy); place(lastY); }
+      }
+
+      const onMove = ev => {
+        lastY = ev.clientY;
+        if (!dragging) {
+          if (Math.abs(ev.clientY - startY) < 5) return;
+          dragging = true;
+          clearFeedback();
+          const rect = card.getBoundingClientRect();
+          offsetY = startY - rect.top;
+          ph = document.createElement("div");
+          ph.className = "placeholder";
+          ph.style.height = rect.height + "px";
+          card.after(ph);
+          card.style.width = rect.width + "px";
+          card.style.left = rect.left + "px";
+          card.classList.add("dragging");
+          scrollTimer = setInterval(autoScroll, 30);
+        }
+        place(ev.clientY);
+      };
+
+      const onUp = () => {
+        card.removeEventListener("pointermove", onMove);
+        card.removeEventListener("pointerup", onUp);
+        card.removeEventListener("pointercancel", onUp);
+        clearInterval(scrollTimer);
+        if (!dragging) return;
+        ph.replaceWith(card);
+        card.classList.remove("dragging");
+        card.style.width = card.style.left = card.style.top = "";
+        answerOrder = [...answer.querySelectorAll(".card")].map(c => c.dataset.id);
+        renumber();
+      };
+
+      card.addEventListener("pointermove", onMove);
+      card.addEventListener("pointerup", onUp);
+      card.addEventListener("pointercancel", onUp);
+    });
   }
 
   // Повертає множину неправильно розташованих речень
@@ -258,154 +285,121 @@
   function clearFeedback() {
     feedback.className = "msg";
     feedback.textContent = "";
-    quiz.style.display = "none";
-    qProgress.style.display = "none";
-    retell.style.display = "none";
-    answer.style.minHeight = "";
-    answer.classList.remove("stretch");
-    showPool(true);
+    answer.querySelectorAll(".card").forEach(c => c.classList.remove("wrong"));
   }
 
-  // Блок з питаннями: верх на рівні послідовності і така сама висота
-  function syncQuizHeight() {
-    if (quiz.style.display !== "block") return;
-    quiz.style.marginTop = "0px";
-    quiz.style.minHeight = "";
-    answer.style.minHeight = "";
-    const shift = answer.getBoundingClientRect().top - quiz.getBoundingClientRect().top;
-    quiz.style.marginTop = shift + "px";
-    const h = Math.max(quiz.offsetHeight, answer.offsetHeight);
-    quiz.style.minHeight = h + "px";
-    answer.style.minHeight = h + "px";
+  // ---------- Відповіді ----------
+  // Ключові слова кожної дії. Перевірка йде по черзі, перше збігання — це дія, яку написала дитина.
+  // Так відповідь зараховується, навіть якщо вона написана коротко або з дрібною помилкою.
+  const MATCH = [
+    ["stir",  /переміш|розміш|мішат|ложк/],
+    ["bag",   /пакет/],
+    ["on",    /увімк|вмик|включ/],
+    ["sugar", /цукор|цукр/],
+    ["wait",  /чека|завар/],
+    ["pour",  /чашк|горнят/],
+    ["water", /чайник|вод|налит|налл/]
+  ];
+  function normalize(t) {
+    return t.toLowerCase().replace(/['’ʼ`]/g, "").replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+  }
+  function recognize(text) {
+    const t = normalize(text);
+    if (!t) return null;
+    const hit = MATCH.find(([, re]) => re.test(t));
+    return hit ? hit[0] : null;
+  }
+
+  function buildQuiz() {
+    quiz.innerHTML = "";
+    QUESTIONS.forEach((q, i) => {
+      const item = document.createElement("div");
+      item.className = "q-item";
+      item.innerHTML = `<label for="a${i}">${i + 1}. ${q.text}</label>
+        <input id="a${i}" type="text" autocomplete="off" spellcheck="false" placeholder="Напиши відповідь">`;
+      const input = item.querySelector("input");
+      input.addEventListener("input", () => { input.classList.remove("bad"); clearFeedback(); });
+      input.addEventListener("keydown", e => { if (e.key === "Enter") checkBtn.click(); });
+      quiz.appendChild(item);
+    });
+  }
+
+  function checkAnswers() {
+    let allOk = true, empty = false;
+    QUESTIONS.forEach((q, i) => {
+      const input = $("a" + i);
+      if (input.classList.contains("ok")) return;
+      if (!input.value.trim()) { empty = true; allOk = false; return; }
+      const ok = recognize(input.value) === q.answer(answerOrder);
+      input.classList.toggle("ok", ok);
+      input.classList.toggle("bad", !ok);
+      input.readOnly = ok;
+      if (!ok) allOk = false;
+    });
+    if (allOk) {
+      phase = "done";
+      checkBtn.disabled = true;
+      feedback.className = "msg ok";
+      feedback.textContent = "🎉 Чудово! Ти відповів на всі питання! Тепер розкажи своїми словами, як заварити чай.";
+    } else if (quiz.querySelector("input.bad")) {
+      feedback.className = "msg bad";
+      feedback.textContent = "Червоні відповіді неправильні. Подивись на свою послідовність і спробуй ще раз.";
+    } else if (empty) {
+      feedback.className = "msg bad";
+      feedback.textContent = "Дай відповідь на всі питання.";
+    }
+  }
+
+  // ---------- Висота: блок зліва (сірий / питання) = блок послідовності ----------
+  function syncHeights() {
+    const wasShown = quiz.style.display === "flex";
+    quiz.style.minHeight = waitBox.style.minHeight = answer.style.minHeight = "";
+    // міряємо блок питань (невидимим, якщо його ще не показано)
+    if (!wasShown) { quiz.style.visibility = "hidden"; quiz.style.display = "flex"; waitBox.style.display = "none"; }
+    const hq = quiz.offsetHeight;
+    if (!wasShown) { quiz.style.display = "none"; quiz.style.visibility = ""; if (phase === "order") waitBox.style.display = ""; }
     answer.classList.add("stretch");
+    const H = Math.max(hq, answer.offsetHeight);
+    answer.style.minHeight = quiz.style.minHeight = waitBox.style.minHeight = H + "px";
   }
-  window.addEventListener("resize", () => {
-    if (quiz.style.display !== "block") return;
-    fixQuestionHeight();
-    qText.textContent = QUESTIONS[qIndex].text;
-    syncQuizHeight();
-  });
-
-  function showPool(show) {
-    $("poolTitle").style.display = show ? "" : "none";
-    pool.style.display = show ? "" : "none";
-  }
+  window.addEventListener("resize", syncHeights);
 
   checkBtn.onclick = () => {
+    if (phase === "questions") { checkAnswers(); return; }
+    if (phase !== "order") return;
     const wrong = wrongIds(answerOrder);
     answer.querySelectorAll(".card").forEach(c => {
       c.classList.toggle("wrong", wrong.has(c.dataset.id));
     });
     if (wrong.size === 0) {
+      phase = "questions";
+      locked = true;
+      answer.classList.add("correct");
       feedback.className = "msg ok";
       feedback.textContent = "🎉 Молодець! Усе правильно! Тепер дай відповіді на питання.";
-      locked = true;
-      render();
-      startQuiz();
+      waitBox.style.display = "none";
+      leftTitle.classList.add("q");
+      quiz.style.display = "flex";
+      checkBtn.textContent = "Перевірити відповіді";
+      $("a0").focus({ preventScroll: true });
+      quiz.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } else {
       feedback.className = "msg bad";
-      feedback.textContent = "Червоні речення стоять не на своєму місці. Натисни на них, щоб повернути, і спробуй ще раз.";
+      feedback.textContent = "Червоні речення стоять не на своєму місці. Перетягни їх і спробуй ще раз.";
     }
   };
-
-  // ---------- Питання ----------
-  // Висота рядка з питанням = найдовше питання, щоб блок не змінював висоту
-  function fixQuestionHeight() {
-    qText.style.minHeight = "";
-    let h = 0;
-    QUESTIONS.forEach(q => { qText.textContent = q.text; h = Math.max(h, qText.offsetHeight); });
-    qText.style.minHeight = h + "px";
-  }
-
-  function startQuiz() {
-    qIndex = 0;
-    showPool(false);
-    quiz.style.display = "block";
-    qProgress.style.display = "block";
-    fixQuestionHeight();
-    showQuestion();
-    quiz.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  function showQuestion() {
-    const q = QUESTIONS[qIndex];
-    const correct = q.answer(answerOrder);
-    qProgress.textContent = `Питання ${qIndex + 1} з ${QUESTIONS.length}`;
-    qText.textContent = q.text;
-    qFeedback.className = "msg";
-    qNext.style.visibility = "hidden";
-    qOptions.innerHTML = "";
-    qOptions.classList.remove("done");
-    shuffle(Object.keys(STEPS)).forEach(id => {
-      const label = document.createElement("label");
-      label.className = "option";
-      const input = document.createElement("input");
-      input.type = "radio";
-      input.name = "q" + qIndex;
-      input.onchange = () => pick(label, id === correct);
-      const span = document.createElement("span");
-      span.textContent = STEPS[id];
-      label.append(input, span);
-      qOptions.appendChild(label);
-    });
-    syncQuizHeight();
-  }
-
-  function pick(card, ok) {
-    qOptions.querySelectorAll(".option").forEach(c => c.classList.remove("picked-bad"));
-    if (ok) {
-      card.classList.add("picked-ok");
-      feedback.className = "msg";
-      feedback.textContent = "";
-      qOptions.classList.add("done");
-      qFeedback.className = "msg";
-      qNext.textContent = qIndex < QUESTIONS.length - 1 ? "Далі" : "Завершити";
-      qNext.style.visibility = "visible";
-    } else {
-      card.classList.add("picked-bad");
-      qFeedback.className = "msg bad";
-    }
-    syncQuizHeight();
-  }
-
-  qNext.onclick = () => {
-    qIndex++;
-    if (qIndex < QUESTIONS.length) {
-      showQuestion();
-    } else {
-      quiz.style.display = "none";
-      qProgress.style.display = "none";
-      retell.style.display = "block";
-      retell.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
-  // ---------- Інше ----------
-
-  // Фіксуємо висоту блоків, щоб кнопка «Перевірити» не стрибала
-  const columns = document.querySelector(".columns");
-  function lockHeight() {
-    if (locked) return;
-    const saveP = poolOrder, saveA = answerOrder;
-    columns.style.minHeight = "";
-    poolOrder = Object.keys(STEPS); answerOrder = []; render();
-    const h1 = columns.offsetHeight;
-    poolOrder = []; answerOrder = Object.keys(STEPS); render();
-    const h2 = columns.offsetHeight;
-    poolOrder = saveP; answerOrder = saveA; render();
-    columns.style.minHeight = Math.max(h1, h2) + "px";
-  }
-  window.addEventListener("resize", lockHeight);
 
   function start() {
     let order;
-    do { order = shuffle(Object.keys(STEPS)); } while (isCorrect(order));
-    poolOrder = order;
-    answerOrder = [];
+    do { order = shuffle(CHAIN); } while (wrongIds(order).size < 5); // добре перемішано
+    answerOrder = order;
+    phase = "order";
     locked = false;
+    checkBtn.disabled = false;
     clearFeedback();
     render();
-    lockHeight();
+    buildQuiz();
+    syncHeights();
   }
 
   start();
